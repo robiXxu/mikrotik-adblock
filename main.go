@@ -31,10 +31,18 @@ func parseData(data string) []Entry {
 	log.Printf("Parsing data...")
 	lines := strings.Split(data, "\n")
 	log.Printf("Got %d rows", len(lines))
+	separator := " "
 	var entries []Entry
 	for _, l := range lines {
 		domain := strings.TrimSpace(l)
-		if len(domain) > 3 {
+		if strings.HasPrefix(domain, "#") {
+			continue
+		}
+		if strings.Contains(domain, separator) {
+			parts := strings.Split(domain, separator)
+			domain = parts[1]
+		}
+		if len(domain) > 4 {
 			entries = append(entries, Entry{
 				domain: domain,
 			})
@@ -43,8 +51,24 @@ func parseData(data string) []Entry {
 	return entries
 }
 
+func unique(sample []Entry) []Entry {
+	var unique []Entry
+	type key struct{ domain string }
+	m := make(map[key]int)
+	for _, v := range sample {
+		k := key{v.domain}
+		if i, ok := m[k]; ok {
+			unique[i] = v
+		} else {
+			m[k] = len(unique)
+			unique = append(unique, v)
+		}
+	}
+	return unique
+}
+
 func writeCommand(entries []Entry, filename string) error {
-	file, err := os.Create(filename)
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		log.Fatalf("Failed to create file: %+v", err)
 	}
@@ -100,11 +124,15 @@ func main() {
 	}
 
 	log.Printf("Total %d", len(entries))
+
+	filtered := unique(entries)
+	log.Printf("Filtered %d", len(filtered))
+
 	wgRead.Wait()
 
 	outputFile := "./output.txt"
 
-	err = writeCommand(entries, outputFile)
+	err = writeCommand(filtered, outputFile)
 	if err != nil {
 		log.Fatalf("Failed to write file %s. Error: %+v", outputFile, err)
 	}

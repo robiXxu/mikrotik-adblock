@@ -11,6 +11,10 @@ import (
 	"sync"
 )
 
+// delay in ms (delay between chunks)
+var delay uint = 3000
+var chunkSize uint = 3000
+var outputFile string = "./output.txt"
 var wgRead sync.WaitGroup
 
 type Entry struct {
@@ -67,18 +71,38 @@ func unique(sample []Entry) []Entry {
 	return unique
 }
 
-func writeCommand(entries []Entry, filename string) error {
+func chunks(slice []Entry, size uint) [][]Entry {
+	var chunks [][]Entry
+	for i := 0; i < len(slice); i += int(size) {
+		end := i + int(size)
+		if end > len(slice) {
+			end = len(slice)
+		}
+		chunks = append(chunks, slice[i:end])
+	}
+	return chunks
+}
+
+func writeCommands(chunkEntries [][]Entry, filename string) error {
 	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		log.Fatalf("Failed to create file: %+v", err)
 	}
 	defer file.Close()
 
+	totalAmountOfChunks := len(chunkEntries)
 	w := bufio.NewWriter(file)
-	fmt.Fprintln(w, "/ip dns static")
 	address := "127.0.0.1"
-	for _, entry := range entries {
-		fmt.Fprintln(w, fmt.Sprintf("add address=%s name=%s", address, entry.domain))
+
+	fmt.Fprintln(w, "/log info \"AD BLOCKER\"")
+	for no, chunk := range chunkEntries {
+		fmt.Fprintln(w, fmt.Sprintf("/log info \"[START] Chunk %d of %d\"", no, totalAmountOfChunks))
+		fmt.Fprintln(w, "/ip dns static")
+		for _, entry := range chunk {
+			fmt.Fprintln(w, fmt.Sprintf("add address=%s name=%s", address, entry.domain))
+		}
+		fmt.Fprintln(w, fmt.Sprintf("/delay %dms", delay))
+		fmt.Fprintln(w, fmt.Sprintf("/log info \"[END] Chunk %d of %d\"", no, totalAmountOfChunks))
 	}
 	return w.Flush()
 }
@@ -130,9 +154,9 @@ func main() {
 
 	wgRead.Wait()
 
-	outputFile := "./output.txt"
+	entriesInChunks := chunks(filtered, chunkSize)
 
-	err = writeCommand(filtered, outputFile)
+	err = writeCommands(entriesInChunks, outputFile)
 	if err != nil {
 		log.Fatalf("Failed to write file %s. Error: %+v", outputFile, err)
 	}

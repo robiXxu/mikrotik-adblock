@@ -1,0 +1,7 @@
+/log info "AD BLOCKER"
+/log info "[START] Chunk 0 of 14"
+/ip dns static
+add address=127.0.0.1 name=01.static.xsf.ximxim.com
+add address=127.0.0.1 name=02.static.xsf.ximxim.com
+add address=127.0.0.1 name=04.static.xsf.ximxim.com
+/log info "[END] Chunk 0 of 14"
